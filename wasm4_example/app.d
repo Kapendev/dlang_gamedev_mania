@@ -1,27 +1,23 @@
+/// This is a really basic (and bad) example of using the UI library.
+/// WASM-4 is needed to make it work.
+/// Check the `scripts/wasm4_template` folder for more information about WASM-4.
+
 import w4 = joka.wasm4;
 import joka.types;
 import joka.math;
+import joka.ui;
 
-immutable(ubyte)[] smiley = [
-    0b11000011,
-    0b10000001,
-    0b00100100,
-    0b00100100,
-    0b00000000,
-    0b00100100,
-    0b10011001,
-    0b11000011,
-];
+UiContext ui;
+UiCommand[64] uiCommandsBuffer;
+char[256] uiCharDataBuffer;
 
-enum dt = 1.0f / 60.0f;
-auto time = 0.0f;
-auto isFirstFrame = true;
-auto point = Vec2();
-auto size = 8;
-
-extern(C) void update() {
+extern(C)
+void update() {
+    static isFirstFrame = true;
     if (isFirstFrame) {
-        // Palette: https://lospec.com/palette-list/mist-gb
+        ui = UiContext(null, uiCommandsBuffer, uiCharDataBuffer, null);
+        ui.manualBordersMode = true;
+        ui.style.border = 2;
         w4.palette[0] = 0xc4f0c2;
         w4.palette[1] = 0x5ab9a8;
         w4.palette[2] = 0x1e606e;
@@ -29,25 +25,89 @@ extern(C) void update() {
         isFirstFrame = false;
     }
 
-    *w4.drawColors = 2;
-    w4.text("D + Joka", 14, 14);
-    w4.hline(14, 25, cast(uint) (32 + sin(time * 2) * 32));
+    ui.handleUiInput();
+    ui.begin();
 
-    const gamepad = *w4.gamepad1;
-    if (gamepad & w4.button1) {
-        *w4.drawColors = 4;
+    auto screen = IRect(w4.screenSize, w4.screenSize);
+    screen.subAll(4);
+    with (ui.captureFocus()) {
+        auto menu = ui.rowItems(screen.subTop(13), 3, 8);
+        if (ui.button(menu.pop(), "1")) w4.trace("1!");
+        if (ui.button(menu.pop(), "2")) w4.trace("2!");
+        if (ui.button(menu.pop(), "3")) w4.trace("3!");
     }
-    w4.blit(smiley.ptr, 76, 76, 8, 8, w4.blit1Bpp);
-    w4.text("Press X to blink", 17, 90);
-    w4.text("Mouse: ({} {})\0".fmt(*w4.mouseX, *w4.mouseY).ptr, 17, 110);
+    if (ui.button(IRect(40, 55, 30, 30), "OwO")) w4.trace("OOO!");
+    if (ui.button(IRect(90, 85, 30, 30), "UwU")) w4.trace("UUU!");
 
-    point = point.moveToWithSlowdown(
-        Vec2(*w4.mouseX - size / 2, *w4.mouseY - size / 2),
-        Vec2(dt),
-        0.15,
-    );
-    *w4.drawColors = 2;
-    w4.oval(cast(int) point.x, cast(int) point.y, size, size);
+    ui.end();
+    ui.drawUiState();
+}
 
-    time += dt;
+void handleUiInput(ref UiContext ui) {
+    ui.input.mousePosition = IVec2(*w4.mouseX, *w4.mouseY);
+
+    static previousMouseButtonDown = false;
+    bool mouseButtonDown = (*w4.mouseButtons & w4.mouseLeft) != 0;
+    ui.input.mouseButtonDown = mouseButtonDown;
+    ui.input.mouseButtonPressed = !previousMouseButtonDown && mouseButtonDown;
+    ui.input.mouseButtonReleased = previousMouseButtonDown && !mouseButtonDown;
+    previousMouseButtonDown = mouseButtonDown;
+
+    auto tempKeyDown = false;
+    {
+        static previousKeyDownTab = false;
+        tempKeyDown = (*w4.gamepad1 & w4.buttonDown) != 0;
+        ui.input.keyPressed |= (!previousKeyDownTab && tempKeyDown) ? UiKeyFlag.tab : UiKeyFlag.none;
+        previousKeyDownTab = tempKeyDown;
+    }
+    {
+        static previousKeyDownLeft = false;
+        tempKeyDown = (*w4.gamepad1 & w4.buttonLeft) != 0;
+        ui.input.keyPressed |= (!previousKeyDownLeft && tempKeyDown) ? UiKeyFlag.left : UiKeyFlag.none;
+        ui.input.keyPressed |= (!previousKeyDownLeft && tempKeyDown) ? UiKeyFlag.up : UiKeyFlag.none;
+        previousKeyDownLeft = tempKeyDown;
+    }
+    {
+        static previousKeyDownRight = false;
+        tempKeyDown = (*w4.gamepad1 & w4.buttonRight) != 0;
+        ui.input.keyPressed |= (!previousKeyDownRight && tempKeyDown) ? UiKeyFlag.right : UiKeyFlag.none;
+        ui.input.keyPressed |= (!previousKeyDownRight && tempKeyDown) ? UiKeyFlag.down : UiKeyFlag.none;
+        previousKeyDownRight = tempKeyDown;
+    }
+    {
+        static previousKeyDownEnter = false;
+        tempKeyDown = (*w4.gamepad1 & w4.button1) != 0;
+        ui.input.keyPressed |= (!previousKeyDownEnter && tempKeyDown) ? UiKeyFlag.enter : UiKeyFlag.none;
+        previousKeyDownEnter = tempKeyDown;
+    }
+}
+
+void drawUiState(ref UiContext ui) {
+   foreach (i, ref command; ui.commands) {
+        *w4.drawColors = 2;
+        with (UiCommandType) final switch (command.type) {
+            case none:
+            case icon:
+                break;
+            case rect:
+                auto borderRect = command.rect.data;
+                borderRect.addAll(ui.style.border);
+                *w4.drawColors = (command.rect.flags & UiCommandFlag.off) ? 4 : 3;
+                if (command.rect.flags & UiCommandFlag.hover)  *w4.drawColors = 4;
+                if (command.rect.flags & UiCommandFlag.active) *w4.drawColors = 3;
+                if (command.rect.flags & UiCommandFlag.focus)  *w4.drawColors = 3;
+                w4.rect(borderRect.x, borderRect.y, borderRect.w, borderRect.h);
+
+                *w4.drawColors = 2;
+                if (command.rect.flags & UiCommandFlag.hover)  *w4.drawColors = 2;
+                if (command.rect.flags & UiCommandFlag.active) *w4.drawColors = 3;
+                if (command.rect.flags & UiCommandFlag.focus)  *w4.drawColors = 3;
+                w4.rect(command.rect.x, command.rect.y, command.rect.w, command.rect.h);
+                break;
+            case text:
+                *w4.drawColors = 4;
+                w4.text(command.text.ptr, command.text.area.x, command.text.area.y);
+                break;
+        }
+    }
 }

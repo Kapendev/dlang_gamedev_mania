@@ -3,4 +3,5 @@
 *.o
 *.obj
 *.lst
+*.wasm
 lib*
