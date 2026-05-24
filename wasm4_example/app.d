@@ -3,111 +3,67 @@
 /// Check the `scripts/wasm4_template` folder for more information about WASM-4.
 
 import w4 = joka.wasm4;
-import joka.types;
-import joka.math;
-import joka.ui;
+import joka;
+import joka.game;
 
-UiContext ui;
-UiCommand[64] uiCommandsBuffer;
-char[256] uiCharDataBuffer;
+auto world = BoxWorld();
+auto platformBoxId = BoxWallId();
+auto groundBoxId = BoxWallId();
+auto playerBoxId = BoxActorId();
+auto playerMover = BoxMover(2, 1, 0.3, 4); // Create a mover with: speed=2, acceleration=1, gravity=0.3, jump=4
+
+auto counter = 0.0;
+
+enum resolutionWidth = w4.screenSize;
+enum resolutionHeight = w4.screenSize;
+enum groundY = 130;
+
+void ready() {
+    // Add walls to the world.
+    platformBoxId = world.appendWall(Box(30, groundY - 17, 40, 10));
+    groundBoxId = world.appendWall(Box(0, groundY, resolutionWidth, resolutionHeight - groundY));
+    // Add an actor to the world. The `BoxSide.top` allows the actor to ride moving walls.
+    playerBoxId = world.appendActor(Box(90, groundY - 64, 14, 14), BoxSide.top);
+}
+
+void draw() {
+    // Move the platform.
+    world.moveWallX(platformBoxId, sin(counter * 4) * 0.8);
+    // Move the player.
+    playerMover.move(Vec2(
+        (*w4.gamepad1 & w4.buttonRight) - (*w4.gamepad1 & w4.buttonLeft),
+        (*w4.gamepad1 & w4.buttonDown) - (*w4.gamepad1 & w4.buttonUp),
+    ));
+    world.moveActorX(playerBoxId, playerMover.velocity.x);
+    // If there is a collision while falling, set the velocity to zero.
+    if (world.moveActorY(playerBoxId, playerMover.velocity.y)) {
+        playerMover.velocity.y = 0;
+    }
+
+    *w4.drawColors = 2;
+    foreach (ref wall; world.walls) {
+        w4.rect(wall.area.x, wall.area.y, wall.area.w, wall.area.h);
+    }
+    *w4.drawColors = 3;
+    foreach (ref actor; world.actors) {
+        w4.rect(actor.area.x, actor.area.y, actor.area.w, actor.area.h);
+    }
+    *w4.drawColors = 4;
+    w4.text("Use arrow keys.", 8, 8);
+}
 
 extern(C)
 void update() {
     static isFirstFrame = true;
     if (isFirstFrame) {
-        ui = UiContext(null, uiCommandsBuffer, uiCharDataBuffer, null);
-        ui.manualBordersMode = true;
-        ui.style.border = 2;
         w4.palette[0] = 0xc4f0c2;
         w4.palette[1] = 0x5ab9a8;
         w4.palette[2] = 0x1e606e;
         w4.palette[3] = 0x2d1b00;
+        ready();
         isFirstFrame = false;
     }
-
-    ui.handleUiInput();
-    ui.begin();
-
-    auto screen = IRect(w4.screenSize, w4.screenSize);
-    screen.subAll(4);
-    with (ui.captureFocus()) {
-        auto menu = ui.rowItems(screen.subTop(13), 3, 8);
-        if (ui.button(menu.pop(), "1")) w4.trace("1!");
-        if (ui.button(menu.pop(), "2")) w4.trace("2!");
-        if (ui.button(menu.pop(), "3")) w4.trace("3!");
-    }
-    if (ui.button(IRect(40, 55, 30, 30), "OwO")) w4.trace("OOO!");
-    if (ui.button(IRect(90, 85, 30, 30), "UwU")) w4.trace("UUU!");
-
-    ui.end();
-    ui.drawUiState();
-}
-
-void handleUiInput(ref UiContext ui) {
-    ui.input.mousePosition = IVec2(*w4.mouseX, *w4.mouseY);
-
-    static previousMouseButtonDown = false;
-    bool mouseButtonDown = (*w4.mouseButtons & w4.mouseLeft) != 0;
-    ui.input.mouseButtonDown = mouseButtonDown;
-    ui.input.mouseButtonPressed = !previousMouseButtonDown && mouseButtonDown;
-    ui.input.mouseButtonReleased = previousMouseButtonDown && !mouseButtonDown;
-    previousMouseButtonDown = mouseButtonDown;
-
-    auto tempKeyDown = false;
-    {
-        static previousKeyDownTab = false;
-        tempKeyDown = (*w4.gamepad1 & w4.buttonDown) != 0;
-        ui.input.keyPressed |= (!previousKeyDownTab && tempKeyDown) ? UiKeyFlag.tab : UiKeyFlag.none;
-        previousKeyDownTab = tempKeyDown;
-    }
-    {
-        static previousKeyDownLeft = false;
-        tempKeyDown = (*w4.gamepad1 & w4.buttonLeft) != 0;
-        ui.input.keyPressed |= (!previousKeyDownLeft && tempKeyDown) ? UiKeyFlag.left : UiKeyFlag.none;
-        ui.input.keyPressed |= (!previousKeyDownLeft && tempKeyDown) ? UiKeyFlag.up : UiKeyFlag.none;
-        previousKeyDownLeft = tempKeyDown;
-    }
-    {
-        static previousKeyDownRight = false;
-        tempKeyDown = (*w4.gamepad1 & w4.buttonRight) != 0;
-        ui.input.keyPressed |= (!previousKeyDownRight && tempKeyDown) ? UiKeyFlag.right : UiKeyFlag.none;
-        ui.input.keyPressed |= (!previousKeyDownRight && tempKeyDown) ? UiKeyFlag.down : UiKeyFlag.none;
-        previousKeyDownRight = tempKeyDown;
-    }
-    {
-        static previousKeyDownEnter = false;
-        tempKeyDown = (*w4.gamepad1 & w4.button1) != 0;
-        ui.input.keyPressed |= (!previousKeyDownEnter && tempKeyDown) ? UiKeyFlag.enter : UiKeyFlag.none;
-        previousKeyDownEnter = tempKeyDown;
-    }
-}
-
-void drawUiState(ref UiContext ui) {
-   foreach (i, ref command; ui.commands) {
-        *w4.drawColors = 2;
-        with (UiCommandType) final switch (command.type) {
-            case none:
-            case icon:
-                break;
-            case rect:
-                auto borderRect = command.rect.data;
-                borderRect.addAll(ui.style.border);
-                *w4.drawColors = (command.rect.flags & UiCommandFlag.off) ? 4 : 3;
-                if (command.rect.flags & UiCommandFlag.hover)  *w4.drawColors = 4;
-                if (command.rect.flags & UiCommandFlag.active) *w4.drawColors = 3;
-                if (command.rect.flags & UiCommandFlag.focus)  *w4.drawColors = 3;
-                w4.rect(borderRect.x, borderRect.y, borderRect.w, borderRect.h);
-
-                *w4.drawColors = 2;
-                if (command.rect.flags & UiCommandFlag.hover)  *w4.drawColors = 2;
-                if (command.rect.flags & UiCommandFlag.active) *w4.drawColors = 3;
-                if (command.rect.flags & UiCommandFlag.focus)  *w4.drawColors = 3;
-                w4.rect(command.rect.x, command.rect.y, command.rect.w, command.rect.h);
-                break;
-            case text:
-                *w4.drawColors = 4;
-                w4.text(command.text.ptr, command.text.area.x, command.text.area.y);
-                break;
-        }
-    }
+    *w4.drawColors = 0;
+    counter += 0.01;
+    draw();
 }
