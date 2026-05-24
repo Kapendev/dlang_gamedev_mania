@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/raylib_example
+raylib_example.so
+raylib_example.dylib
+raylib_example.dll
+libraylib_example.a
+raylib_example.a
+raylib_example.lib
+raylib_example-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst

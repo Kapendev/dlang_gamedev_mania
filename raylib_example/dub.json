@@ -1,0 +1,24 @@
+{
+	"authors": [
+		"Alex"
+	],
+	"lflags-linux": [
+		"-rpath=$$ORIGIN"
+	],
+	"license": "proprietary",
+	"name": "raylib_example",
+	"libs": [
+		"raylib"
+	],
+	"lflags-posix": [
+		"-L."
+	],
+	"description": "A minimal D application.",
+	"dependencies": {
+		"raylib-d": "~>6.0.1"
+	},
+	"lflags-osx": [
+		"-rpath",
+		"@executable_path/"
+	]
+}

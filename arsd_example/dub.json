@@ -1,0 +1,8 @@
+{
+	"description": "A minimal D application.",
+	"authors": [
+		"Alex"
+	],
+	"license": "proprietary",
+	"name": "arsd_example"
+}

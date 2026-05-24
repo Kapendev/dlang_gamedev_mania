@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/arsd_example
+arsd_example.so
+arsd_example.dylib
+arsd_example.dll
+libarsd_example.a
+arsd_example.a
+arsd_example.lib
+arsd_example-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
