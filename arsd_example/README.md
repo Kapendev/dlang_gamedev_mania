@@ -1,6 +1,6 @@
 # MY AWESOME GAME
 
-A game written in D for the [ASRD](https://wasm4.org) fantasy console.
+A game written in D for the [ASRD](https://github.com/adamdruppe/arsd) fantasy console.
 
 ## Building
 

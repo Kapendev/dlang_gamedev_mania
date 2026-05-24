@@ -1,6 +1,6 @@
 # MY AWESOME GAME
 
-A game written in D for the [raylib](https://wasm4.org) fantasy console.
+A game written in D for the [raylib](https://github.com/schveiguy/raylib-d) fantasy console.
 
 ## Building
 
